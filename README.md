@@ -1,6 +1,6 @@
 # CTFd Containers Plugin (Hardened + Race-Safe)
 
-This is a hardened and reliability-focused fork of the CTFd “containers” plugin.
+This is a working fork of the CTFd “containers” plugin.
 
 Key objectives:
 - Race-safe spawning under concurrent requests (prevents duplicate containers per challenge/user or challenge/team).
