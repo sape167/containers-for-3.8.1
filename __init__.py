@@ -5,7 +5,8 @@ import json
 import datetime
 import math
 
-from flask import Blueprint, request, Flask, render_template, url_for, redirect, flash
+from sqlalchemy.exc import IntegrityError
+from flask import Blueprint, request, Flask, render_template, url_for, redirect, flash, current_app
 
 from CTFd.models import db, Solves
 from CTFd.plugins import register_plugin_assets_directory
@@ -312,7 +313,40 @@ def load(app: Flask):
                 server=challenge.server
             )
         db.session.add(new_container)
-        db.session.commit()
+
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+
+            # kill the extra docker container you just created (best-effort)
+            try:
+                container_manager.kill_container(created_container.id)
+            except Exception:
+                pass
+
+            # fetch the already-existing container and return it
+            if is_team is True:
+                existing = ContainerInfoModel.query.filter_by(
+                    challenge_id=challenge.id,
+                    team_id=xid
+                ).first()
+            else:
+                existing = ContainerInfoModel.query.filter_by(
+                    challenge_id=challenge.id,
+                    user_id=xid
+                ).first()
+
+            if existing:
+                return json.dumps({
+                    "status": "already_running",
+                    "hostname": hostname,
+                    "port": existing.port,
+                    "connect": challenge.ctype,
+                    "expires": existing.expires
+                })
+
+            return {"error": "Race condition: container exists but record not found"}, 500
 
         return json.dumps({
             "status": "created",
@@ -618,7 +652,11 @@ def load(app: Flask):
         container_manager.settings = settings_to_dict(ContainerSettingsModel.query.all())
 
         try:
-            container_manager.initialize_connection(container_manager.settings, Flask)
+            container_manager.initialize_connection(
+            container_manager.settings,
+            current_app._get_current_object()
+        )
+
         except ContainerException as err:
             flash(str(err), "error")
             return redirect(url_for(".route_containers_settings"))

@@ -1,5 +1,6 @@
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from sqlalchemy import UniqueConstraint
 
 from CTFd.models import db
 from CTFd.models import Challenges
@@ -30,6 +31,7 @@ class ContainerChallengeModel(Challenges):
 
 
 class ContainerInfoModel(db.Model):
+    __tablename__ = "container_info"
     __mapper_args__ = {"polymorphic_identity": "container_info"}
     container_id = db.Column(db.String(512), primary_key=True)
     challenge_id = db.Column(
@@ -51,6 +53,20 @@ class ContainerInfoModel(db.Model):
     challenge = relationship(ContainerChallengeModel,
                              foreign_keys=[challenge_id])
     server = db.Column(db.Text, default="")
+
+    __table_args__ = (
+	db.UniqueConstraint(
+            "challenge_id",
+            "user_id",
+            name="uq_challenge_user"
+        ),
+        db.UniqueConstraint(
+            "challenge_id",
+            "team_id",
+            name="uq_challenge_team"
+        ),
+     )
+
 class ContainerSettingsModel(db.Model):
     __mapper_args__ = {"polymorphic_identity": "container_settings"}
     key = db.Column(db.String(512), primary_key=True)
